@@ -22,8 +22,6 @@
 
 #include <Arduino.h>
 
-#include <Streaming.h>
-
 #include "SoftwareI2C.h"
 
 /*************************************************************************************************
@@ -39,9 +37,9 @@ void SoftwareI2C::begin(int Sda, int Scl)
 
     pinMode(pinScl, OUTPUT);
     pinMode(pinSda, OUTPUT);
+    sda_in_out = OUTPUT;
     digitalWrite(pinScl, HIGH);
     digitalWrite(pinSda, HIGH);
-
 }
 
 /*************************************************************************************************
@@ -52,7 +50,12 @@ void SoftwareI2C::begin(int Sda, int Scl)
 *************************************************************************************************/
 void SoftwareI2C::sdaSet(uchar ucDta)
 {
-    pinMode(pinSda, OUTPUT);
+
+    if(sda_in_out != OUTPUT)
+    {
+        sda_in_out = OUTPUT;
+        pinMode(pinSda, OUTPUT);
+    }
     digitalWrite(pinSda, ucDta);
 }
 
@@ -65,18 +68,6 @@ void SoftwareI2C::sdaSet(uchar ucDta)
 void SoftwareI2C::sclSet(uchar ucDta)
 {
     digitalWrite(pinScl, ucDta);
-}
-
-/*************************************************************************************************
- * Function Name: sdaGet
- * Description:  get sda value
- * Parameters: None
- * Return: return value of sda
-*************************************************************************************************/
-uchar SoftwareI2C::sdaGet(void)
-{
-    pinMode(pinSda, INPUT);
-    return digitalRead(pinSda);
 }
 
 /*************************************************************************************************
@@ -98,66 +89,23 @@ void SoftwareI2C::i2c_delay(void)
 *************************************************************************************************/
 uchar SoftwareI2C::getAck(void)
 {
-    unsigned int ntime = 50000;
-
-    pinMode(pinSda, INPUT);
-    digitalWrite(pinSda, HIGH);
-    DELAY();
+    sclSet(LOW); 
+    pinMode(pinSda, INPUT_PULLUP);
+    //digitalWrite(pinSda, HIGH);
+    sda_in_out = INPUT;
+    
     sclSet(HIGH);
-    // DELAY();
-    while(ntime--)
+    unsigned long timer_t = micros();
+    while(1)
     {
         if(!digitalRead(pinSda))                                // get ack
         {
-            sclSet(LOW);                                        // scl low
-            DELAY();
+            // DELAY();
             return GETACK;
         }
+        
+        if(micros() - timer_t > 100)return GETNAK;
     }
-
-    if(ntime<1)
-    {
-#if __Debug
-        Serial.println("get nak");
-#endif
-    }
-
-    sclSet(LOW);
-    DELAY();
-    
-    return GETNAK;
-}
-
-/*************************************************************************************************
- * Function Name: sendAck
- * Description:  send ack signal
- * Parameters: None
- * Return: None
-*************************************************************************************************/
-void SoftwareI2C::sendAck(void)
-{
-    sdaSet(LOW);                                                       // sdaSet(LOW)                 
-    DELAY();
-    sclSet(HIGH);                                                      // sclSet(HIGH)    
-    DELAY();
-    sclSet(LOW);                                                       //  sclSet(LOW)   
-    DELAY();
-}
-
-/*************************************************************************************************
- * Function Name: sendNak
- * Description:  send nak signal
- * Parameters: None
- * Return: None
-*************************************************************************************************/
-void SoftwareI2C::sendNak(void)
-{
-    sdaSet(HIGH);                                                      /* sdaSet(LOW)                 */
-    DELAY();
-    sclSet(HIGH);                                                      /* sclSet(HIGH)                */
-    DELAY();
-    sclSet(LOW);                                                       /* sclSet(LOW)                 */
-    DELAY();
 }
 
 /*************************************************************************************************
@@ -168,13 +116,7 @@ void SoftwareI2C::sendNak(void)
 *************************************************************************************************/
 void SoftwareI2C::sendStart(void)
 {
-    sclSet(HIGH);DELAY();DELAY();DELAY();DELAY();                      /* scl =  1                     */
-    sdaSet(HIGH);DELAY();DELAY();DELAY();DELAY();                      /* sda  = 1                     */
-    sdaSet(LOW);DELAY();DELAY();DELAY();DELAY();                       /* sdaSet(LOW);                */
-    DELAY();DELAY();DELAY();DELAY();
-    sclSet(LOW);DELAY();DELAY();DELAY();DELAY();                                             /* scl = 0;                     */
-                                                                        /* delay_us_cfg(15);            */
-
+    sdaSet(LOW);
 }
 
 /*************************************************************************************************
@@ -185,52 +127,10 @@ void SoftwareI2C::sendStart(void)
 *************************************************************************************************/
 void SoftwareI2C::sendStop(void)
 {
-
-    sdaSet(LOW); DELAY();
-    sclSet(HIGH);DELAY();
-    
-    sdaSet(HIGH);DELAY();
     sclSet(LOW);
-    for(int i = 0; i<10; i++)
-    DELAY();
-}
-
-/*************************************************************************************************
- * Function Name: sendBit
- * Description:  send a bit
- * Parameters: bit: 0 or 1?
- * Return: None
-*************************************************************************************************/
-void SoftwareI2C::sendBit(uchar bit)
-{
-    if (bit & 0x80) {
-        sdaSet(HIGH);
-    } else {
-        sdaSet(LOW);
-    }
-    DELAY();
+    sdaSet(LOW);
     sclSet(HIGH);
-    DELAY();
-    sclSet(LOW);
-
-}
-
-/*************************************************************************************************
- * Function Name: revBit
- * Description:  receive a bit
- * Parameters: None
- * Return: value
-*************************************************************************************************/
-uchar SoftwareI2C::revBit()
-{
-    unsigned  char  ucRt;
-    DELAY();
-    sclSet(HIGH);
-    DELAY();
-    ucRt = sdaGet();
-    sclSet(LOW);
-    return  ucRt;
-
+    sdaSet(HIGH);   
 }
 
 /*************************************************************************************************
@@ -241,14 +141,15 @@ uchar SoftwareI2C::revBit()
 *************************************************************************************************/
 void SoftwareI2C::sendByte(uchar ucDta)
 {
-    unsigned  char  i;
-
-    i = 8;
-    do {
-        sendBit(ucDta);
-        ucDta=ucDta << 1;
-    } while (--i != 0);
-
+    for(int i=0; i<8; i++)
+    {
+        sclSet(LOW);
+        sdaSet((ucDta&0x80)!=0);
+        ucDta <<= 0;
+        sclSet(HIGH);
+        sdaSet((ucDta&0x80)!=0);
+        ucDta <<= 1;
+    }
 }
 
 /*************************************************************************************************
@@ -264,26 +165,6 @@ uchar SoftwareI2C::sendByteAck(uchar ucDta)
 }
 
 /*************************************************************************************************
- * Function Name: revByte
- * Description:  receive a byte
- * Parameters: None
- * Return: value that receive
-*************************************************************************************************/
-uchar SoftwareI2C::revByte()
-{
-    unsigned  char  ucRt;
-    unsigned  char  i;
-
-    i = 8;
-    do {
-        ucRt  =  (ucRt << 1) + revBit();
-    } while (--i != 0);
-
-    return ucRt;
-
-}
-
-/*************************************************************************************************
  * Function Name: beginTransmission
  * Description:  send begin signal
  * Parameters: divider – clock divider
@@ -291,10 +172,10 @@ uchar SoftwareI2C::revByte()
 *************************************************************************************************/
 uchar SoftwareI2C::beginTransmission(uchar addr)
 {
-
     sendStart();                       // start signal
-    return sendByteAck(addr<<1);       // send write address and get ack
-
+    uchar ret = sendByteAck(addr<<1);       // send write address and get ack
+    sclSet(LOW);
+    return ret;
 }
 
 /*************************************************************************************************
@@ -305,8 +186,7 @@ uchar SoftwareI2C::beginTransmission(uchar addr)
 *************************************************************************************************/
 void SoftwareI2C::endTransmission()
 {
-    sendStop();
-    
+    sendStop();   
 }
 
 /*************************************************************************************************
@@ -317,7 +197,16 @@ void SoftwareI2C::endTransmission()
 *************************************************************************************************/  
 uchar SoftwareI2C::write(uchar dta)
 {
+#if 0
+    for(int i=0; i<5; i++)
+    {
+        if(sendByteAck(dta))return 1;
+        else continue;
+    }
+    return 0;
+#else
     return sendByteAck(dta);
+#endif
 }
 
 /*************************************************************************************************
@@ -350,10 +239,11 @@ uchar SoftwareI2C::write(uchar len, uchar *dta)
 *************************************************************************************************/
 uchar SoftwareI2C::requestFrom(uchar addr, uchar len)
 {
-
     sendStart();                       // start signal
     recv_len = len;
-    return sendByteAck((addr<<1)+1);       // send write address and get ack
+    uchar ret = sendByteAck((addr<<1)+1);       // send write address and get ack
+    sclSet(LOW);
+    return ret;
 }
 
 /*************************************************************************************************
@@ -364,28 +254,48 @@ uchar SoftwareI2C::requestFrom(uchar addr, uchar len)
 *************************************************************************************************/
 uchar SoftwareI2C::read()
 {
-    
     if(-1 == recv_len)return 0;
+
+    unsigned  char  ucRt = 0;
+    unsigned  char  i;
     
-    uchar dta = revByte();
+    pinMode(pinSda, INPUT_PULLUP);
+    //digitalWrite(pinSda, HIGH);
+    sda_in_out = INPUT;
     
+    for(int i=0; i<8; i++)
+    {
+        unsigned  char  ucBit;
+        sclSet(LOW);
+        sclSet(HIGH);
+        ucBit = digitalRead(pinSda);
+        ucRt = (ucRt << 1) + ucBit;
+    }  
+    
+    uchar dta = ucRt;
     recv_len--;
-    
+
     if(recv_len>0)
-    sendAck();
+    {
+        sclSet(LOW);                                                // sclSet(HIGH)    
+        sdaSet(LOW);                                                // sdaSet(LOW)                 
+        sclSet(HIGH);                                               //  sclSet(LOW)  
+        sclSet(LOW);        
+    }
     else
     {
-        sendNak();
+        sclSet(LOW);                                                // sclSet(HIGH)    
+        sdaSet(LOW);                                                // sdaSet(LOW)                 
+        sclSet(HIGH);                                               //  sclSet(LOW) 
         sendStop();
         recv_len=-1;
     }
-
+    delayMicroseconds(100);
     return dta;
- 
 }
 
 SoftwareI2C Wire;
-    
+   
 /*********************************************************************************************************
   END FILE
 *********************************************************************************************************/

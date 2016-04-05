@@ -31,7 +31,6 @@
 
 #define __Debug        1                      // debug mode
 
-
 #define  GETACK        1                      // get ack                        
 #define  GETNAK        0                      // get nak   
    
@@ -53,30 +52,23 @@ private:
     
     int recv_len;
     
+    int sda_in_out;
+    
 private:
     
-    void sdaSet(uchar ucDta); 
-    void sclSet(uchar ucDta);                             
-    uchar sdaGet(void);                                        
-    void i2c_delay(void);          
+    inline void sdaSet(uchar ucDta); 
+    inline void sclSet(uchar ucDta);                                                                   
+    inline void i2c_delay(void);          
 
-    void sendStart(void);
-    void sendStop(void);
-    uchar getAck(void);
-    void sendAck(void);
-    void sendNak(void);
-    
-    void sendBit(uchar bit);
-    uchar revBit();
-    
-    void sendByte(uchar ucDta);
-    
-    uchar sendByteAck(uchar ucDta);                                 // send byte and get ack
-    
-    uchar revByte();                                                // receive a byte
+    inline void sendStart(void);
+    inline void sendStop(void);
+    inline uchar getAck(void);
+    inline void sendByte(uchar ucDta);
+    inline uchar sendByteAck(uchar ucDta);                                 // send byte and get ack
     
 public:
     
+    //SoftwareI2C();
     void begin(int Sda, int Scl); 
     uchar beginTransmission(uchar addr);
     void endTransmission();
