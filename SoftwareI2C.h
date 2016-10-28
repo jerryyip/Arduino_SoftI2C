@@ -26,11 +26,6 @@
 #ifndef _SOFTWAREI2C_H_
 #define _SOFTWAREI2C_H_
 
-
-#define DELAY i2c_delay
-
-#define __Debug        1                      // debug mode
-
 #define  GETACK        1                      // get ack                        
 #define  GETNAK        0                      // get nak   
    
@@ -41,7 +36,9 @@
 #define  LOW           0
 #endif
 
+#ifndef uchar
 #define uchar unsigned char
+#endif
 
 class SoftwareI2C
 {
@@ -58,7 +55,6 @@ private:
     
     inline void sdaSet(uchar ucDta); 
     inline void sclSet(uchar ucDta);                                                                   
-    inline void i2c_delay(void);          
 
     inline void sendStart(void);
     inline void sendStop(void);
@@ -71,16 +67,15 @@ public:
     //SoftwareI2C();
     void begin(int Sda, int Scl); 
     uchar beginTransmission(uchar addr);
-    void endTransmission();
+    uchar endTransmission();
     
     uchar write(uchar dta);
     uchar write(uchar len, uchar *dta);
     uchar requestFrom(uchar addr, uchar len);
     uchar read();
-
+    uchar available(){return recv_len;}
 };
 
-extern SoftwareI2C Wire;
 #endif
 /*********************************************************************************************************
   END FILE
